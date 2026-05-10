@@ -24,9 +24,9 @@ def extract_prosody(audio: np.ndarray, sr: int) -> ProsodyFeatures:
 def _detect_pauses(
     audio: np.ndarray, sr: int, frame_ms: int = 30, aggressiveness: int = 2
 ) -> tuple[float, int]:
-    """Use WebRTC VAD to count pauses. Requires 16 kHz input."""
+    """Use WebRTC VAD to count pauses. Audio must be 16 kHz (VAD requirement)."""
     if sr != 16000:
-        return 0.0, 0
+        raise ValueError(f"WebRTC VAD requires 16 kHz audio, got {sr} Hz. Resample before calling.")
     vad = webrtcvad.Vad(aggressiveness)
     frame_len = int(sr * frame_ms / 1000)
     n_frames = len(audio) // frame_len
