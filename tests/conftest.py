@@ -41,7 +41,7 @@ def stereo_wav(tmp_path):
     audio = np.stack([left, right], axis=1)
     path = str(tmp_path / "stereo_44k.wav")
     sf.write(path, audio, sr_orig)
-    return str(path)
+    return str(path), audio, sr_orig
 
 @pytest.fixture
 def white_noise_wav(tmp_path):
