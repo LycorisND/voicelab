@@ -7,7 +7,7 @@ from voicelab.schema import HealthIndicators, PitchFeatures
 def _load_health_model():
     import torch
     import torch.nn as nn
-    from transformers import HubertModel, Wav2Vec2Processor
+    from transformers import HubertModel, Wav2Vec2FeatureExtractor
 
     class HealthHead(nn.Module):
         def __init__(self, hidden: int = 768) -> None:
@@ -21,7 +21,7 @@ def _load_health_model():
             out = self.backbone(input_values=input_values).last_hidden_state
             return self.head(out.mean(dim=1))
 
-    processor = Wav2Vec2Processor.from_pretrained("facebook/hubert-base-ls960")
+    processor = Wav2Vec2FeatureExtractor.from_pretrained("facebook/hubert-base-ls960")
     model = HealthHead()
     model.eval()
     if torch.cuda.is_available():
