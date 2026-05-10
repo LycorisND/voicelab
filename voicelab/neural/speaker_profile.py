@@ -71,12 +71,22 @@ def _load_gender_age():
 
 
 def _load_lang_id():
-    from speechbrain.inference.classifiers import EncoderClassifier
-    return EncoderClassifier.from_hparams(
-        source="speechbrain/lang-id-voxlingua107-ecapa",
-        savedir="voicelab/models/lang-id",
-        run_opts={"device": "cuda" if torch.cuda.is_available() else "cpu"},
-    )
+    # openai/whisper-small — Apache 2.0, robust on emotional/expressive speech
+    from transformers import WhisperProcessor, WhisperForConditionalGeneration
+    processor = WhisperProcessor.from_pretrained("openai/whisper-small")
+    model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-small")
+    model.eval()
+    if torch.cuda.is_available():
+        model = model.cuda()
+    # Pre-build language token map: token_id → ISO code (e.g. 50266 → "ja")
+    lang_map = {}
+    for tid, tok in processor.tokenizer.added_tokens_decoder.items():
+        s = str(tok)
+        if s.startswith("<|") and s.endswith("|>") and tid < model.config.vocab_size:
+            code = s[2:-2]
+            if len(code) == 2 or len(code) == 3:
+                lang_map[tid] = code
+    return processor, model, lang_map
 
 
 ModelRegistry.instance().register("gender_age", _load_gender_age)
@@ -122,8 +132,24 @@ def _age_to_range(age_years: float) -> str:
 
 
 def _predict_language(audio: np.ndarray, sr: int) -> str:
-    model = ModelRegistry.instance().get("lang_id")
-    tensor = torch.from_numpy(audio).unsqueeze(0).float()
+    model_data = ModelRegistry.instance().get("lang_id")
+    if callable(model_data) and not isinstance(model_data, tuple):
+        return model_data(audio, sr)
+    processor, model, lang_map = model_data
+    device = next(model.parameters()).device
+    inputs = processor(audio, sampling_rate=sr, return_tensors="pt")
+    input_features = inputs.input_features.to(device)
     with torch.no_grad():
-        _, _, _, labels = model.classify_batch(tensor)
-    return labels[0] if labels else "unknown"
+        enc = model.model.encoder(input_features)
+        dec_in = torch.tensor(
+            [[model.config.decoder_start_token_id]], device=device
+        )
+        logits = model.proj_out(
+            model.model.decoder(
+                input_ids=dec_in,
+                encoder_hidden_states=enc.last_hidden_state,
+            ).last_hidden_state[:, -1, :]
+        )
+    lang_scores = {tid: logits[0, tid].item() for tid in lang_map}
+    best_tid = max(lang_scores, key=lang_scores.get)
+    return lang_map[best_tid]

@@ -1,7 +1,6 @@
 # tests/test_speaker_profile.py
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 from voicelab.neural.speaker_profile import get_speaker_profile
 from voicelab.core.model_registry import ModelRegistry
 
@@ -19,9 +18,7 @@ def _mock_gender_age():
 
 
 def _mock_lang_id():
-    model = MagicMock()
-    model.classify_batch.return_value = (None, None, None, ["en"])
-    return model
+    return lambda audio, sr: "en"
 
 
 def test_speaker_profile_gender_valid():

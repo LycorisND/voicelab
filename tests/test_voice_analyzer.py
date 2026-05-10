@@ -32,9 +32,7 @@ def _mock_ecapa():
 
 
 def _mock_lang_id():
-    m = MagicMock()
-    m.classify_batch.return_value = (None, None, None, ["en"])
-    return m
+    return lambda audio, sr: "en"
 
 
 def test_analyze_returns_analysis_result(sine_440_wav):
