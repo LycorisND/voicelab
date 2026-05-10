@@ -21,7 +21,13 @@ class ModelRegistry:
         return cls._instance
 
     def register(self, name: str, loader: Callable[[], Any]) -> None:
-        self._loaders[name] = loader
+        with self._lock:
+            self._loaders[name] = loader
+
+    def clear(self) -> None:
+        """Clear model cache. Loaders remain registered."""
+        with self._lock:
+            self._cache.clear()
 
     def get(self, name: str) -> Any:
         if name not in self._cache:
@@ -35,6 +41,4 @@ class ModelRegistry:
     def is_loaded(self, name: str) -> bool:
         return name in self._cache
 
-    def clear(self) -> None:
-        with self._lock:
-            self._cache.clear()
+
