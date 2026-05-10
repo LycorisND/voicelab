@@ -2,7 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 import numpy as np
-import torch
 
 
 @dataclass
@@ -63,7 +62,7 @@ class AudioMetadata:
 
 @dataclass
 class AnalysisResult:
-    duration: float
+    duration: float           # same value as metadata.duration; kept at top level for convenience
     pitch: PitchFeatures
     spectral: SpectralFeatures
     prosody: ProsodyFeatures
@@ -84,7 +83,7 @@ class FrameResult:
 
 @dataclass
 class Config:
-    device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
+    device: str = field(default_factory=lambda: "cuda" if __import__("torch").cuda.is_available() else "cpu")
     neural: bool = True       # Whether to run neural models
     n_mfcc: int = 13
     chunk_size: int = 512     # samples per chunk (32ms @ 16kHz)
