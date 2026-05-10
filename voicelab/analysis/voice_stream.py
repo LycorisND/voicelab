@@ -23,8 +23,9 @@ class VoiceStream:
         import librosa
         energy = float(np.sqrt(np.mean(chunk ** 2)))
         is_voiced = energy > 0.01
+        n_fft = min(512, len(chunk))
         mfcc = librosa.feature.mfcc(
-            y=chunk, sr=sr, n_mfcc=self.config.n_mfcc
+            y=chunk, sr=sr, n_mfcc=self.config.n_mfcc, n_fft=n_fft
         ).mean(axis=1).astype(np.float32)
         zcr = librosa.feature.zero_crossing_rate(chunk)[0]
         f0_approx = float(sr * np.mean(zcr) / 2) if is_voiced else float("nan")

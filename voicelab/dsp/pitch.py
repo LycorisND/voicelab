@@ -7,7 +7,7 @@ from voicelab.schema import PitchFeatures
 def extract_pitch(audio: np.ndarray, sr: int) -> PitchFeatures:
     snd = parselmouth.Sound(audio.astype(np.float64), sampling_frequency=float(sr))
 
-    pitch_obj = snd.to_pitch(time_step=0.01, pitch_floor=50.0, pitch_ceiling=500.0)
+    pitch_obj = snd.to_pitch(time_step=0.01, pitch_floor=50.0, pitch_ceiling=600.0)
     f0_values = pitch_obj.selected_array["frequency"]  # 0 where unvoiced
     voiced_mask = f0_values > 0
     voiced_f0 = f0_values[voiced_mask]
@@ -22,7 +22,7 @@ def extract_pitch(audio: np.ndarray, sr: int) -> PitchFeatures:
     jitter_local = 0.0
     shimmer_local = 0.0
     try:
-        pp = call(snd, "To PointProcess (periodic, cc)", 50.0, 500.0)
+        pp = call(snd, "To PointProcess (periodic, cc)", 50.0, 600.0)
         n_points = call(pp, "Get number of points")
         if n_points >= 3:
             jitter_local = float(

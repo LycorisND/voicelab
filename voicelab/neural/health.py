@@ -35,7 +35,7 @@ ModelRegistry.instance().register("health", _load_health_model)
 def get_health_indicators(
     audio: np.ndarray, pitch: PitchFeatures, sr: int
 ) -> HealthIndicators:
-    dysphonia, fatigue, hoarseness = _neural_scores(audio, sr)
+    dysphonia, fatigue, hoarseness = _acoustic_scores(pitch)
 
     flags: list[str] = []
     if pitch.jitter_local > 0.03 or pitch.hnr < 5.0:
@@ -53,18 +53,29 @@ def get_health_indicators(
     )
 
 
-def _neural_scores(audio: np.ndarray, sr: int) -> tuple[float, float, float]:
-    import torch
-    model_data = ModelRegistry.instance().get("health")
-    # Mock: callable returning dict
-    if callable(model_data) and not isinstance(model_data, tuple):
-        scores = model_data(audio, sr)
-        return scores["dysphonia"], scores["fatigue"], scores["hoarseness"]
-    processor, model = model_data
-    inputs = processor(audio, sampling_rate=sr, return_tensors="pt", padding=True)
-    if torch.cuda.is_available():
-        inputs = {k: v.cuda() for k, v in inputs.items()}
-    with torch.no_grad():
-        out = model(inputs["input_values"])
-    scores = out.squeeze().cpu().numpy()
-    return float(scores[0]), float(scores[1]), float(scores[2])
+def _acoustic_scores(pitch: PitchFeatures) -> tuple[float, float, float]:
+    """Compute health scores from acoustic features.
+
+    Formulas based on clinical voice literature (Baken & Orlikoff, 2000):
+    - Dysphonia correlates with elevated jitter and low HNR
+    - Hoarseness correlates with elevated shimmer
+    - Fatigue correlates with reduced F0 variability and low voiced fraction
+    """
+    # Dysphonia: jitter contributes 60%, HNR deficit contributes 40%
+    # Normal jitter < 0.01, pathological > 0.03; HNR normal > 15 dB
+    jitter_score = np.clip(pitch.jitter_local / 0.05, 0.0, 1.0)
+    hnr_score = np.clip(1.0 - (pitch.hnr + 20.0) / 35.0, 0.0, 1.0)
+    dysphonia = 0.6 * jitter_score + 0.4 * hnr_score
+
+    # Hoarseness: shimmer is primary indicator
+    # Normal shimmer < 0.03, pathological > 0.1
+    hoarseness = np.clip(pitch.shimmer_local / 0.15, 0.0, 1.0)
+
+    # Fatigue: low voiced fraction + flat F0 contour = tired/monotone voice
+    voiced_deficit = np.clip(1.0 - pitch.voiced_fraction / 0.7, 0.0, 1.0)
+    # High F0 std relative to mean = expressive (not fatigued)
+    variation = pitch.f0_std / (pitch.f0_mean + 1e-8)
+    monotone = np.clip(1.0 - variation / 0.3, 0.0, 1.0)
+    fatigue = 0.5 * voiced_deficit + 0.5 * monotone
+
+    return float(dysphonia), float(fatigue), float(hoarseness)
