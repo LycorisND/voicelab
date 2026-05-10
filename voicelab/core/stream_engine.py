@@ -42,7 +42,12 @@ class StreamEngine:
         sr: int,
         processor: Callable[[np.ndarray, int, float], object],
     ) -> Generator[object, None, None]:
-        """Consume an iterator of raw audio chunks, apply processor per chunk."""
+        """Consume an iterator of raw audio chunks, apply processor per chunk.
+
+        Note: timestamp is end-of-chunk (total samples consumed / sr), which differs
+        from process_file's start-of-chunk convention. The first chunk has a cold-start
+        artifact: the buffer is pre-filled with zeros before real audio arrives.
+        """
         buffer = np.zeros(self.chunk_size, dtype=np.float32)
         sample_count = 0
         for incoming in source:
