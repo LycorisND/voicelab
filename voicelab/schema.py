@@ -88,3 +88,38 @@ class Config:
     n_mfcc: int = 13
     chunk_size: int = 512     # samples per chunk (32ms @ 16kHz)
     hop_size: int = 256       # 50% overlap
+
+
+@dataclass
+class EmotionResult:
+    emotion: str                    # top-1 label
+    confidence: float               # probability of top-1
+    scores: dict[str, float]        # all labels → probability (sum ≈ 1.0)
+    valence: float                  # −1.0 … +1.0
+    arousal: float                  # −1.0 … +1.0
+    dominant_emotions: list[str]    # labels with score > dominant_threshold
+    path: str                       # "backbone" | "fusion" | "fusion-lite"
+
+
+@dataclass
+class EmotionFrame:
+    """Emitted per chunk in real-time emotion streaming."""
+    timestamp: float
+    emotion: str
+    confidence: float
+    scores: dict[str, float]
+    valence: float
+    arousal: float
+    dominant_emotions: list[str]
+
+
+@dataclass
+class EmotionConfig:
+    fast: bool = False
+    emotion_labels: list[str] = field(default_factory=lambda: [
+        "anger", "disgust", "fear", "joy", "sadness", "surprise", "neutral"
+    ])
+    dominant_threshold: float = 0.2
+    device: str = field(
+        default_factory=lambda: "cuda" if __import__("torch").cuda.is_available() else "cpu"
+    )
