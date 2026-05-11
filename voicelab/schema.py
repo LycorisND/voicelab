@@ -111,6 +111,7 @@ class EmotionFrame:
     valence: float
     arousal: float
     dominant_emotions: list[str]
+    path: str = "fusion-lite"  # "backbone" | "fusion" | "fusion-lite"
 
 
 @dataclass
