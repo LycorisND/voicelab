@@ -66,13 +66,17 @@ def _build_features_198(result: AnalysisResult) -> np.ndarray:
     emb = result.speaker.embedding.astype(np.float32)
     if emb.shape[0] != 192:
         raise ValueError(f"Speaker embedding must be 192-dim, got {emb.shape[0]}")
+
+    def _safe(v: float) -> float:
+        return 0.0 if not np.isfinite(v) else float(v)
+
     prosody = np.array([
-        result.prosody.tempo_bpm,
-        result.prosody.pause_ratio,
-        result.pitch.f0_mean,
-        result.pitch.f0_std,
-        result.pitch.hnr,
-        result.spectral.rms_mean,
+        _safe(result.prosody.tempo_bpm),
+        _safe(result.prosody.pause_ratio),
+        _safe(result.pitch.f0_mean),
+        _safe(result.pitch.f0_std),
+        _safe(result.pitch.hnr),
+        _safe(result.spectral.rms_mean),
     ], dtype=np.float32)
     return np.concatenate([emb, prosody])
 

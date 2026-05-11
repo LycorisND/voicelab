@@ -1,7 +1,6 @@
 # voicelab/emotion/stream.py
 from __future__ import annotations
 import queue
-import threading
 from typing import Generator, Iterator
 import numpy as np
 from voicelab.analysis.voice_stream import VoiceStream

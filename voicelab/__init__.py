@@ -37,7 +37,7 @@ def stream(config: Config | None = None) -> VoiceStream:
 def analyze_emotion(path: str, config: EmotionConfig | None = None) -> EmotionResult:
     """Analyse emotion in an audio file. Backbone path by default; fusion if fast=True."""
     cfg = config or EmotionConfig()
-    key = f"{cfg.fast}-{cfg.dominant_threshold}-{len(cfg.emotion_labels)}"
+    key = f"{cfg.fast}-{cfg.dominant_threshold}-{','.join(cfg.emotion_labels)}"
     if key not in _emotion_analyzer_cache:
         _emotion_analyzer_cache[key] = EmotionAnalyzer(cfg)
     return _emotion_analyzer_cache[key].analyze(path)
