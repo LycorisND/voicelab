@@ -63,6 +63,9 @@ ModelRegistry.instance().register("ser_fusion_lite", _load_fusion_lite)
 
 
 def _build_features_198(result: AnalysisResult) -> np.ndarray:
+    emb = result.speaker.embedding.astype(np.float32)
+    if emb.shape[0] != 192:
+        raise ValueError(f"Speaker embedding must be 192-dim, got {emb.shape[0]}")
     prosody = np.array([
         result.prosody.tempo_bpm,
         result.prosody.pause_ratio,
@@ -71,14 +74,15 @@ def _build_features_198(result: AnalysisResult) -> np.ndarray:
         result.pitch.hnr,
         result.spectral.rms_mean,
     ], dtype=np.float32)
-    return np.concatenate([result.speaker.embedding.astype(np.float32), prosody])
+    return np.concatenate([emb, prosody])
 
 
 def _build_features_15(frame: FrameResult) -> np.ndarray:
     pitch = 0.0 if (frame.pitch != frame.pitch) else float(frame.pitch)  # NaN guard
+    energy = 0.0 if (frame.energy != frame.energy) else float(frame.energy)  # NaN guard
     return np.concatenate([
         frame.mfcc.astype(np.float32),
-        np.array([float(frame.energy), pitch], dtype=np.float32),
+        np.array([energy, pitch], dtype=np.float32),
     ])
 
 
@@ -102,5 +106,5 @@ def _run_fusion_lite(frame: FrameResult, config: EmotionConfig) -> EmotionFrame:
         valence=er.valence,
         arousal=er.arousal,
         dominant_emotions=er.dominant_emotions,
-        path="fusion-lite",
+        path=er.path,
     )
