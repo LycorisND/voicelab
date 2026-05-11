@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system deps
+        run: sudo apt-get install -y gcc g++ libsndfile1
+
+      - name: Install Python deps
+        run: |
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers librosa parselmouth webrtcvad sounddevice soundfile h5py numpy pytest ruff speechbrain
+
+      - name: Lint
+        run: ruff check voicelab/ tests/
+
+      - name: Unit tests (CPU, no GPU, no real model weights)
+        run: pytest tests/ -v -m "not integration" --tb=short
