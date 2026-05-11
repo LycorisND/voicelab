@@ -94,9 +94,12 @@ ModelRegistry.instance().register("lang_id", _load_lang_id)
 
 
 def get_speaker_profile(
-    audio: np.ndarray, embedding: np.ndarray, sr: int
+    audio: np.ndarray,
+    embedding: np.ndarray,
+    sr: int,
+    pitch_features=None,
 ) -> SpeakerProfile:
-    gender, age_range = _predict_gender_age(audio, sr)
+    gender, age_range = _predict_gender_age(audio, sr, pitch_features)
     language = _predict_language(audio, sr)
     return SpeakerProfile(
         embedding=embedding,
@@ -107,16 +110,62 @@ def get_speaker_profile(
     )
 
 
-def _predict_gender_age(audio: np.ndarray, sr: int) -> tuple[str, str]:
+def _predict_gender_age(audio: np.ndarray, sr: int, pitch_features=None) -> tuple[str, str]:
     model_data = ModelRegistry.instance().get("gender_age")
     if callable(model_data) and not isinstance(model_data, tuple):
         return model_data(audio, sr)
     # result: [age(0-1), p_female, p_male, p_child]
     result = model_data.predict(audio, sr)
-    age_years = float(result[0]) * 100
+    age_neural = float(result[0]) * 100
     p_female, p_male = float(result[1]), float(result[2])
     gender = "M" if p_male >= p_female else "F"
+    age_years = _apply_f0_age_correction(age_neural, gender, pitch_features)
     return gender, _age_to_range(age_years)
+
+
+def _apply_f0_age_correction(age_neural: float, gender: str, pitch_features) -> float:
+    """Blend neural age with F0-based acoustic heuristic.
+
+    The audeering model is trained on natural speech corpora and struggles with
+    expressive/animated voice acting, falsetto, or high-pitched characters.
+    F0 (fundamental frequency) is a reliable physical correlate of vocal age:
+    pre-pubertal voices sit above 230 Hz for both sexes; post-pubertal males
+    drop sharply to 85-130 Hz. When the two estimates disagree by >15 years,
+    we shift the blend 60 % toward the acoustic signal.
+    Sources: Titze 1994, Robb & Saxman 1985.
+    """
+    if pitch_features is None:
+        return age_neural
+    f0 = getattr(pitch_features, "f0_mean", 0.0)
+    if f0 < 60 or f0 > 700:
+        return age_neural
+
+    if gender == "M":
+        if f0 > 240:
+            age_f0 = 12.0   # pre-pubertal male
+        elif f0 > 165:
+            age_f0 = 17.0   # adolescent male
+        elif f0 > 115:
+            age_f0 = 23.0   # young adult male
+        elif f0 > 90:
+            age_f0 = 38.0   # mid-age adult male
+        else:
+            age_f0 = 58.0   # older male
+    else:
+        if f0 > 260:
+            age_f0 = 14.0   # pre-pubertal female
+        elif f0 > 220:
+            age_f0 = 21.0   # young adult female
+        elif f0 > 185:
+            age_f0 = 33.0   # mid-age adult female
+        elif f0 > 165:
+            age_f0 = 48.0   # older adult female
+        else:
+            age_f0 = 58.0   # elderly female
+
+    if abs(age_neural - age_f0) > 15:
+        return 0.6 * age_neural + 0.4 * age_f0
+    return age_neural
 
 
 def _age_to_range(age_years: float) -> str:

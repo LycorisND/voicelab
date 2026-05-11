@@ -55,6 +55,6 @@ class VoiceAnalyzer:
         from voicelab.neural.speaker_profile import get_speaker_profile
         from voicelab.neural.health import get_health_indicators
         embedding = get_speaker_embedding(audio, sr)
-        speaker = get_speaker_profile(audio, embedding, sr)
+        speaker = get_speaker_profile(audio, embedding, sr, pitch_features=pitch)
         health = get_health_indicators(audio, pitch, sr)
         return speaker, health
