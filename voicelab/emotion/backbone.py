@@ -49,7 +49,7 @@ class _BackboneModel:
 
         class _Net(Wav2Vec2PreTrainedModel):
             _tied_weights_keys: list = []
-            all_tied_weights_keys: dict = {}
+            all_tied_weights_keys: list = []
 
             def __init__(self, config):
                 super().__init__(config)
@@ -77,7 +77,7 @@ class _BackboneModel:
 
     def __call__(self, audio: np.ndarray, sr: int) -> tuple[float, float]:
         """Returns (valence, arousal) in [-1.0, 1.0]."""
-        y = self.processor(audio, sampling_rate=sr)["input_values"][0]
+        y = self.processor(audio.astype(np.float32), sampling_rate=sr)["input_values"][0]
         y = torch.from_numpy(y.reshape(1, -1)).to(self.device)
         with torch.no_grad():
             arousal_raw, _, valence_raw = self.model(y)
