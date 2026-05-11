@@ -20,11 +20,11 @@ _CIRCUMPLEX: dict[str, tuple[float, float]] = {
 
 
 class _ModelHead(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, num_labels: int = 1):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.dropout = nn.Dropout(config.final_dropout)
-        self.out_proj = nn.Linear(config.hidden_size, 1)
+        self.out_proj = nn.Linear(config.hidden_size, num_labels)
 
     def forward(self, x):
         x = self.dropout(x)
@@ -35,10 +35,11 @@ class _ModelHead(nn.Module):
 
 
 class _BackboneModel:
-    """Wraps audeering/wav2vec2-large-robust-12-ft-emotion-age-gender.
+    """Wraps audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim.
 
-    The model regresses arousal, dominance, valence in [0, 1].
-    We expose (valence, arousal) in [-1, 1].
+    Single classifier head outputs [arousal, dominance, valence] as regression
+    values approximately in [0, 1] (trained on MSP-Podcast with MSE loss).
+    We expose (valence, arousal) mapped to [-1, 1].
     """
 
     def __init__(self) -> None:
@@ -49,25 +50,19 @@ class _BackboneModel:
 
         class _Net(Wav2Vec2PreTrainedModel):
             _tied_weights_keys: list = []
-            all_tied_weights_keys: list = []
+            all_tied_weights_keys: dict = {}
 
             def __init__(self, config):
                 super().__init__(config)
                 self.wav2vec2 = Wav2Vec2Model(config)
-                self.arousal = _ModelHead(config)
-                self.dominance = _ModelHead(config)
-                self.valence = _ModelHead(config)
+                self.classifier = _ModelHead(config, 3)  # arousal, dominance, valence
                 self.init_weights()
 
             def forward(self, input_values):
                 hidden = self.wav2vec2(input_values)[0].mean(dim=1)
-                return (
-                    torch.sigmoid(self.arousal(hidden)),
-                    torch.sigmoid(self.dominance(hidden)),
-                    torch.sigmoid(self.valence(hidden)),
-                )
+                return self.classifier(hidden)  # [batch, 3]
 
-        model_id = "audeering/wav2vec2-large-robust-12-ft-emotion-age-gender"
+        model_id = "audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim"
         self.processor = Wav2Vec2Processor.from_pretrained(model_id)
         self.model = _Net.from_pretrained(model_id)
         self.model.eval()
@@ -76,13 +71,20 @@ class _BackboneModel:
             self.model = self.model.cuda()
 
     def __call__(self, audio: np.ndarray, sr: int) -> tuple[float, float]:
-        """Returns (valence, arousal) in [-1.0, 1.0]."""
+        """Returns (valence, arousal) in [-1.0, 1.0].
+
+        Model output order: [arousal(0), dominance(1), valence(2)].
+        Raw outputs are regression values ~[0,1] clipped and remapped to [-1,1].
+        """
         y = self.processor(audio.astype(np.float32), sampling_rate=sr)["input_values"][0]
         y = torch.from_numpy(y.reshape(1, -1)).to(self.device)
         with torch.no_grad():
-            arousal_raw, _, valence_raw = self.model(y)
-        valence = float(valence_raw.item()) * 2.0 - 1.0
-        arousal = float(arousal_raw.item()) * 2.0 - 1.0
+            out = self.model(y)  # [1, 3]
+        arousal_raw = float(out[0, 0].item())
+        valence_raw = float(out[0, 2].item())
+        # Remap [0,1] → [-1,1]; clip to handle slight out-of-range outputs
+        valence = float(np.clip(valence_raw * 2.0 - 1.0, -1.0, 1.0))
+        arousal = float(np.clip(arousal_raw * 2.0 - 1.0, -1.0, 1.0))
         return valence, arousal
 
 
