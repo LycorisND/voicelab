@@ -1,6 +1,5 @@
 # tests/test_emotion_schema.py
 import pytest
-import numpy as np
 from voicelab.schema import EmotionResult, EmotionFrame, EmotionConfig
 
 
@@ -8,7 +7,7 @@ def _make_result(**overrides):
     defaults = dict(
         emotion="joy",
         confidence=0.6,
-        scores={"anger": 0.1, "joy": 0.6, "neutral": 0.3},
+        scores={"anger": 0.2, "joy": 0.6, "neutral": 0.2},
         valence=0.5,
         arousal=0.4,
         dominant_emotions=["joy"],
@@ -44,6 +43,12 @@ def test_dominant_emotions_in_scores():
     assert all(e in r.scores for e in r.dominant_emotions)
 
 
+def test_dominant_emotions_exceed_threshold():
+    cfg = EmotionConfig()
+    r = _make_result()
+    assert all(r.scores[e] > cfg.dominant_threshold for e in r.dominant_emotions)
+
+
 def test_emotion_frame_instantiates():
     f = EmotionFrame(
         timestamp=0.5,
@@ -56,6 +61,33 @@ def test_emotion_frame_instantiates():
     )
     assert f.timestamp == 0.5
     assert f.emotion == "neutral"
+
+
+def test_emotion_frame_confidence_matches_scores():
+    f = EmotionFrame(
+        timestamp=0.5,
+        emotion="neutral",
+        confidence=0.8,
+        scores={"neutral": 0.8, "joy": 0.2},
+        valence=0.0,
+        arousal=0.1,
+        dominant_emotions=["neutral"],
+    )
+    assert f.confidence == f.scores[f.emotion]
+
+
+def test_emotion_frame_va_in_range():
+    f = EmotionFrame(
+        timestamp=0.5,
+        emotion="neutral",
+        confidence=0.8,
+        scores={"neutral": 0.8, "joy": 0.2},
+        valence=0.0,
+        arousal=0.1,
+        dominant_emotions=["neutral"],
+    )
+    assert -1.0 <= f.valence <= 1.0
+    assert -1.0 <= f.arousal <= 1.0
 
 
 def test_emotion_config_defaults():
